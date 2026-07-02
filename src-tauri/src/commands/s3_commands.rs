@@ -20,7 +20,9 @@ pub struct BucketInfo {
 pub struct S3Object {
     pub key: String,
     pub size: u64,
+    #[serde(rename = "lastModified")]
     pub last_modified: String,
+    #[serde(rename = "isFolder")]
     pub is_folder: bool,
 }
 
@@ -99,7 +101,7 @@ pub async fn rename_object(
     // Copy to new key
     client.copy_object()
         .bucket(&bucket)
-        .copy_source(format!("{}/{}", bucket, old_key))
+        .copy_source(format!("{}/{}", bucket, urlencoding::encode(&old_key)))
         .key(&new_key)
         .send().await.map_err(|e| e.to_string())?;
     // Delete old key

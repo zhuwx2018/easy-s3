@@ -30,6 +30,14 @@ export function FilePreview({ bucket, key, connection, onClose }: Props) {
     loadContent();
   }, [bucket, key]);
 
+  useEffect(() => {
+    return () => {
+      if (content && content.startsWith('blob:')) {
+        URL.revokeObjectURL(content);
+      }
+    };
+  }, [content]);
+
   const loadContent = async () => {
     setLoading(true);
     setError(null);

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useConnectionStore } from '../store/connectionStore';
 import { useBrowserStore, type S3Object } from '../store/browserStore';
@@ -7,7 +7,6 @@ import { SearchBar } from '../components/SearchBar';
 import { FileUploader } from '../components/FileUploader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ChevronRight, FolderOpen } from 'lucide-react';
-import { useState } from 'react';
 
 export function BrowserPage() {
   const { currentConnection } = useConnectionStore();

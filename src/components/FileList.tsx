@@ -16,7 +16,7 @@ function formatSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-export function FileList({ onDownload, onDelete, onRename }: Props) {
+export function FileList({ onDownload, onDelete, onRename, onNavigate }: Props) {
   const { objects, searchQuery, selectedObjects, toggleSelected, setSelectedObjects } =
     useBrowserStore();
 
@@ -70,7 +70,7 @@ export function FileList({ onDownload, onDelete, onRename }: Props) {
                     <File className="w-4 h-4 text-gray-400" />
                   )}
                   <button
-                    onClick={() => !obj.isFolder && onDownload(obj.key)}
+                    onClick={() => obj.isFolder ? onNavigate(obj.key) : onDownload(obj.key)}
                     className={obj.isFolder ? 'cursor-pointer' : 'hover:underline'}
                   >
                     {obj.key.split('/').filter(Boolean).pop()}
