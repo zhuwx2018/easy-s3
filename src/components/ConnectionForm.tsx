@@ -1,29 +1,42 @@
 import { useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import type { Connection } from '../store/connectionStore';
 
 interface Props {
   initial?: Connection;
   onSubmit: (connection: Connection) => void;
-  onTest?: (connection: Connection) => Promise<boolean>;
+  onTest?: (connection: Connection) => Promise<{ success: boolean; error?: string }>;
   onCancel?: () => void;
 }
 
 export function ConnectionForm({ initial, onSubmit, onTest, onCancel }: Props) {
   const [form, setForm] = useState<Connection>(
-    initial || { name: '', endpoint: '', region: 'us-east-1', accessKey: '', secretKey: '' }
+    initial || { name: '', endpoint: '', accessKey: '', secretKey: '', useTLS: false }
   );
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+  const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
 
   const handleTest = async () => {
     if (!onTest) return;
     setTesting(true);
     setTestResult(null);
+    console.log('handleTest form:', JSON.stringify(form));
+
+    // First test raw HTTP
     try {
-      const success = await onTest(form);
-      setTestResult(success ? 'success' : 'error');
-    } catch {
-      setTestResult('error');
+      const protocol = form.useTLS ? 'https' : 'http';
+      const endpoint = form.endpoint.startsWith('http') ? form.endpoint : `${protocol}://${form.endpoint}`;
+      const debugResult = await invoke<string>('debug_http', { endpoint });
+      console.log('debug_http result:', debugResult);
+    } catch (e) {
+      console.log('debug_http error:', e);
+    }
+
+    try {
+      const result = await onTest(form);
+      setTestResult(result);
+    } catch (e) {
+      setTestResult({ success: false, error: String(e) });
     }
     setTesting(false);
   };
@@ -39,22 +52,22 @@ export function ConnectionForm({ initial, onSubmit, onTest, onCancel }: Props) {
           placeholder="My S3"
         />
       </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="useTLS"
+          checked={form.useTLS}
+          onChange={(e) => setForm({ ...form, useTLS: e.target.checked })}
+        />
+        <label htmlFor="useTLS" className="text-sm">使用 TLS (HTTPS)</label>
+      </div>
       <div>
         <label className="block text-sm font-medium">Endpoint</label>
         <input
           className="w-full border rounded px-3 py-2"
           value={form.endpoint}
           onChange={(e) => setForm({ ...form, endpoint: e.target.value })}
-          placeholder="https://s3.amazonaws.com"
-        />
-      </div>
-      <div>
-        <label className="block text-sm font-medium">Region</label>
-        <input
-          className="w-full border rounded px-3 py-2"
-          value={form.region}
-          onChange={(e) => setForm({ ...form, region: e.target.value })}
-          placeholder="us-east-1"
+          placeholder="18.1.239.163:8082"
         />
       </div>
       <div>
@@ -96,8 +109,10 @@ export function ConnectionForm({ initial, onSubmit, onTest, onCancel }: Props) {
           </button>
         )}
       </div>
-      {testResult === 'success' && <p className="text-green-600">连接成功</p>}
-      {testResult === 'error' && <p className="text-red-600">连接失败</p>}
+      {testResult?.success && <p className="text-green-600">连接成功</p>}
+      {testResult && !testResult.success && (
+        <p className="text-red-600">连接失败: {testResult.error}</p>
+      )}
     </div>
   );
 }

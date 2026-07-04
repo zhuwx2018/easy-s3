@@ -8,6 +8,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
+            commands::s3_commands::ping,
             commands::s3_commands::test_connection,
             commands::s3_commands::list_buckets,
             commands::s3_commands::list_objects,

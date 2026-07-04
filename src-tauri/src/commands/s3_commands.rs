@@ -1,13 +1,28 @@
 use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::io::Write;
 use crate::s3::client::create_client;
+
+pub(crate) fn log_to_file(msg: &str) {
+    if let Ok(mut file) = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(std::env::temp_dir().join("s3-browser-debug.log"))
+    {
+        let _ = writeln!(file, "{}", msg);
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct S3Connection {
     pub name: String,
     pub endpoint: String,
-    pub region: String,
+    #[serde(rename = "accessKey")]
     pub access_key: String,
+    #[serde(rename = "secretKey")]
     pub secret_key: String,
+    #[serde(rename = "useTLS", default)]
+    pub use_tls: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,16 +43,36 @@ pub struct S3Object {
 
 #[tauri::command]
 pub async fn test_connection(connection: S3Connection) -> Result<bool, String> {
+    log_to_file(&format!("test_connection: endpoint={}, access_key={}, secret_key={}, use_tls={}", connection.endpoint, connection.access_key, connection.secret_key, connection.use_tls));
+
     let client = create_client(&connection).await;
-    client.list_buckets().send().await.map_err(|e| e.to_string())?;
-    Ok(true)
+
+    log_to_file("About to call list_buckets...");
+    let result = client.list_buckets().send().await;
+
+    match result {
+        Ok(response) => {
+            log_to_file(&format!("success: {} buckets", response.buckets().len()));
+            Ok(true)
+        }
+        Err(e) => {
+            let error_string = e.to_string();
+            log_to_file(&format!("error: {}", error_string));
+            Err(format!("连接失败: {}", error_string))
+        }
+    }
+}
+
+#[tauri::command]
+pub fn ping() -> String {
+    "pong".to_string()
 }
 
 #[tauri::command]
 pub async fn list_buckets(connection: S3Connection) -> Result<Vec<BucketInfo>, String> {
     let client = create_client(&connection).await;
     let response = client.list_buckets().send().await.map_err(|e| e.to_string())?;
-    Ok(response.buckets().unwrap_or_default().iter().map(|b| BucketInfo {
+    Ok(response.buckets().iter().map(|b| BucketInfo {
         name: b.name().unwrap_or("").to_string(),
         creation_date: b.creation_date().map(|d| d.to_string()).unwrap_or_default(),
     }).collect())
@@ -55,10 +90,10 @@ pub async fn list_objects(
         request = request.prefix(&p);
     }
     let response = request.send().await.map_err(|e| e.to_string())?;
-    let objects = response.contents().unwrap_or_default();
+    let objects = response.contents();
     Ok(objects.iter().map(|obj| S3Object {
         key: obj.key().unwrap_or("").to_string(),
-        size: obj.size(),
+        size: obj.size().unwrap_or(0) as u64,
         last_modified: obj.last_modified().map(|d| d.to_string()).unwrap_or_default(),
         is_folder: obj.key().map(|k| k.ends_with('/')).unwrap_or(false),
     }).collect())
@@ -98,13 +133,11 @@ pub async fn rename_object(
     new_key: String,
 ) -> Result<(), String> {
     let client = create_client(&connection).await;
-    // Copy to new key
     client.copy_object()
         .bucket(&bucket)
         .copy_source(format!("{}/{}", bucket, urlencoding::encode(&old_key)))
         .key(&new_key)
         .send().await.map_err(|e| e.to_string())?;
-    // Delete old key
     client.delete_object().bucket(&bucket).key(&old_key)
         .send().await.map_err(|e| e.to_string())?;
     Ok(())
@@ -156,4 +189,27 @@ pub async fn get_object_url(
         .key(&key)
         .presigned(presigning_config).await.map_err(|e| e.to_string())?;
     Ok(presigned.uri().to_string())
+}
+
+#[tauri::command]
+pub async fn debug_http(endpoint: String) -> Result<String, String> {
+    log_to_file(&format!("debug_http: testing {}", endpoint));
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    match client.get(&endpoint).send().await {
+        Ok(resp) => {
+            let status = resp.status().as_u16();
+            let body = resp.text().await.unwrap_or_default();
+            log_to_file(&format!("debug_http: status={}, body_len={}", status, body.len()));
+            Ok(format!("status={}, body={}", status, &body[..body.len().min(200)]))
+        }
+        Err(e) => {
+            log_to_file(&format!("debug_http error: {}", e));
+            Err(e.to_string())
+        }
+    }
 }

@@ -3,9 +3,9 @@ import { create } from 'zustand';
 export interface Connection {
   name: string;
   endpoint: string;
-  region: string;
   accessKey: string;
   secretKey: string;
+  useTLS: boolean;
 }
 
 interface ConnectionStore {

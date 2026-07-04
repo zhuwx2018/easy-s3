@@ -23,8 +23,10 @@ export function ConnectionsPage() {
   };
 
   const handleSubmit = async (connection: Connection) => {
+    console.log('DEBUG handleSubmit called with:', JSON.stringify(connection));
     try {
       await invoke('save_connection', { connection });
+      console.log('DEBUG save_connection succeeded');
       if (editing) {
         removeConnection(editing.name);
       }
@@ -32,7 +34,8 @@ export function ConnectionsPage() {
       setShowForm(false);
       setEditing(null);
     } catch (e) {
-      console.error(e);
+      console.error('DEBUG save_connection error:', e);
+      alert('保存失败: ' + e);
     }
   };
 
@@ -45,8 +48,26 @@ export function ConnectionsPage() {
     }
   };
 
-  const handleTest = async (connection: Connection) => {
-    return invoke<boolean>('test_connection', { connection });
+  const handleTest = async (connection: Connection): Promise<{ success: boolean; error?: string }> => {
+    console.log('DEBUG handleTest called');
+
+    try {
+      const pingResult = await invoke<string>('ping');
+      console.log('DEBUG ping result:', pingResult);
+    } catch (e) {
+      console.error('DEBUG ping error:', e);
+      return { success: false, error: 'Ping失败: ' + String(e) };
+    }
+
+    try {
+      console.log('DEBUG calling test_connection with:', JSON.stringify(connection));
+      const result = await invoke<boolean>('test_connection', { connection });
+      console.log('DEBUG test_connection result:', result);
+      return { success: true };
+    } catch (e) {
+      console.error('DEBUG test_connection error:', e);
+      return { success: false, error: String(e) };
+    }
   };
 
   return (
@@ -78,7 +99,7 @@ export function ConnectionsPage() {
           <div key={conn.name} className="flex items-center justify-between p-4 border rounded">
             <div>
               <div className="font-medium">{conn.name}</div>
-              <div className="text-sm text-gray-500">{conn.endpoint} ({conn.region})</div>
+              <div className="text-sm text-gray-500">{conn.useTLS ? 'https' : 'http'}://{conn.endpoint}</div>
             </div>
             <div className="flex gap-2">
               <button

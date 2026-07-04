@@ -7,9 +7,9 @@ interface Props {
   key: string;
   connection: {
     endpoint: string;
-    region: string;
     accessKey: string;
     secretKey: string;
+    useTLS: boolean;
   };
   onClose: () => void;
 }

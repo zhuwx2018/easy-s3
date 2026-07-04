@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import toast, { Toaster } from 'react-hot-toast';
 import { useConnectionStore } from '../store/connectionStore';
 import { useBrowserStore, type S3Object } from '../store/browserStore';
 import { FileList } from '../components/FileList';
@@ -70,20 +71,28 @@ export function BrowserPage() {
 
   const handleDownload = async (key: string) => {
     if (!currentConnection || !currentBucket) return;
+
+    const fileName = key.split('/').pop() || key;
+    const toastId = toast.loading(`正在下载: ${fileName}`);
+
     try {
       const data = await invoke<number[]>('download_object', {
         connection: currentConnection,
         bucket: currentBucket,
         key: currentPrefix + key,
       });
+
       const blob = new Blob([new Uint8Array(data)]);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = key.split('/').pop() || key;
+      a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
+
+      toast.success(`下载完成: ${fileName}`, { id: toastId });
     } catch (e) {
+      toast.error(`下载失败: ${fileName}`, { id: toastId });
       console.error(e);
     }
   };
@@ -150,6 +159,7 @@ export function BrowserPage() {
 
   return (
     <div className="p-6">
+      <Toaster position="top-right" />
       <div className="flex items-center gap-4 mb-4">
         <FolderOpen className="w-6 h-6" />
         <select

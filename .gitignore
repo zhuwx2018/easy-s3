@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/icons/
+
+# IDE
+.idea/
+
+# Temporary files
+*.log
+*.tmp
+debug.log
+
+# Windows
+*.exe
+*.msi
+*.pdb
+
+# Rust
+Cargo.lock

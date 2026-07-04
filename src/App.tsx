@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ConnectionsPage } from './pages/ConnectionsPage';
 import { BrowserPage } from './pages/BrowserPage';
 import { useConnectionStore } from './store/connectionStore';
@@ -8,6 +8,13 @@ function App() {
   const [page, setPage] = useState<'connections' | 'browser'>(
     currentConnection ? 'browser' : 'connections'
   );
+
+  // Sync page with currentConnection
+  useEffect(() => {
+    if (currentConnection) {
+      setPage('browser');
+    }
+  }, [currentConnection]);
 
   return (
     <div className="min-h-screen bg-gray-100">
