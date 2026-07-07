@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Write;
+use tauri::Emitter;
 use crate::s3::client::create_client;
 
 pub(crate) fn log_to_file(msg: &str) {
@@ -143,6 +144,20 @@ pub async fn rename_object(
     Ok(())
 }
 
+#[derive(Clone, serde::Serialize)]
+pub struct UploadProgress {
+    pub task_id: String,
+    pub uploaded: u64,
+    pub total: u64,
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct DownloadProgress {
+    pub task_id: String,
+    pub downloaded: u64,
+    pub total: u64,
+}
+
 #[tauri::command]
 pub async fn upload_object(
     connection: S3Connection,
@@ -160,18 +175,125 @@ pub async fn upload_object(
 }
 
 #[tauri::command]
+pub async fn upload_object_with_progress(
+    app: tauri::AppHandle,
+    connection: S3Connection,
+    bucket: String,
+    key: String,
+    data: Vec<u8>,
+    taskId: String,
+) -> Result<u64, String> {
+    let data_len = data.len() as u64;
+    let client = create_client(&connection).await;
+
+    // Emit initial progress
+    let _ = app.emit("upload-progress", UploadProgress {
+        task_id: taskId.clone(),
+        uploaded: 0,
+        total: data_len,
+    });
+
+    client.put_object()
+        .bucket(&bucket)
+        .key(&key)
+        .body(data.into())
+        .send().await.map_err(|e| e.to_string())?;
+
+    // Emit completion
+    let _ = app.emit("upload-progress", UploadProgress {
+        task_id: taskId,
+        uploaded: data_len,
+        total: data_len,
+    });
+
+    Ok(data_len)
+}
+
+#[derive(serde::Serialize)]
+pub struct DownloadResult {
+    pub local_path: String,
+    pub size: u64,
+}
+
+#[tauri::command]
+pub async fn download_object_with_progress(
+    app: tauri::AppHandle,
+    connection: S3Connection,
+    bucket: String,
+    key: String,
+    taskId: String,
+) -> Result<DownloadResult, String> {
+    let client = create_client(&connection).await;
+
+    let response = client.get_object()
+        .bucket(&bucket)
+        .key(&key)
+        .send().await.map_err(|e| e.to_string())?;
+
+    let content_length = response.content_length().unwrap_or(0) as u64;
+    let file_name = key.split('/').last().unwrap_or(&key).to_string();
+
+    // Get downloads directory
+    let downloads_dir = dirs::download_dir()
+        .unwrap_or_else(|| std::env::temp_dir());
+    let local_path = downloads_dir.join(&file_name);
+
+    // Create file for writing
+    let file = std::fs::File::create(&local_path)
+        .map_err(|e| e.to_string())?;
+    let mut file = tokio::fs::File::from_std(file);
+
+    use tokio::io::AsyncWriteExt;
+    let mut stream = response.body;
+    let mut downloaded: u64 = 0;
+
+    use futures::StreamExt;
+    while let Some(chunk_result) = stream.next().await {
+        let chunk = chunk_result.map_err(|e| e.to_string())?;
+        let chunk_len = chunk.len() as u64;
+
+        file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+        downloaded += chunk_len;
+
+        // Emit progress
+        let _ = app.emit("download-progress", DownloadProgress {
+            task_id: taskId.clone(),
+            downloaded,
+            total: content_length,
+        });
+    }
+
+    file.flush().await.map_err(|e| e.to_string())?;
+
+    Ok(DownloadResult {
+        local_path: local_path.to_string_lossy().to_string(),
+        size: downloaded,
+    })
+}
+
+#[tauri::command]
 pub async fn download_object(
     connection: S3Connection,
     bucket: String,
     key: String,
 ) -> Result<Vec<u8>, String> {
+    log_to_file(&format!("download_object: bucket={}, key={}", bucket, key));
     let client = create_client(&connection).await;
+    log_to_file("Client created for download");
     let response = client.get_object()
         .bucket(&bucket)
         .key(&key)
-        .send().await.map_err(|e| e.to_string())?;
-    let bytes = response.body.collect().await.map_err(|e| e.to_string())?;
-    Ok(bytes.to_vec())
+        .send().await.map_err(|e| {
+            log_to_file(&format!("download_object error: {}", e));
+            e.to_string()
+        })?;
+    let bytes = response.body.collect().await.map_err(|e| {
+        log_to_file(&format!("download_object collect error: {}", e));
+        e.to_string()
+    })?;
+    let bytes_vec = bytes.to_vec();
+    log_to_file(&format!("download_object success: {} bytes", bytes_vec.len()));
+    Ok(bytes_vec)
 }
 
 #[tauri::command]
