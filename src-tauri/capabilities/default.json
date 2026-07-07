@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schemas.tauri.app/v2/capabilities.json",
+  "identifier": "default",
+  "description": "Default capabilities for S3 Browser",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open"
+  ]
+}
