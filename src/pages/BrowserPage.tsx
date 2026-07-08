@@ -97,7 +97,6 @@ export function BrowserPage() {
       });
       const bucketNames = result.map((b) => b.name);
       setBuckets(bucketNames);
-      // 选择第一个 bucket
       if (bucketNames.length > 0) {
         setCurrentBucket(bucketNames[0]);
       }
@@ -341,11 +340,11 @@ export function BrowserPage() {
   return (
     <div className="flex h-full">
       {/* Main Content */}
-      <div className="flex-1 p-6 overflow-auto">
+      <div className="flex-1 p-6 flex flex-col overflow-hidden">
         <Toaster position="top-right" />
 
         {/* Header with bucket and upload */}
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-4 mb-4 shrink-0">
           <FolderOpen className="w-6 h-6" />
           <select
             value={currentBucket}
@@ -368,7 +367,7 @@ export function BrowserPage() {
         </div>
 
         {/* Path Navigation */}
-        <div className="flex items-center gap-2 mb-4 text-sm bg-gray-50 px-4 py-2 rounded-lg border">
+        <div className="flex items-center gap-2 mb-4 text-sm bg-gray-50 px-4 py-2 rounded-lg border shrink-0">
           <button
             onClick={navigateUp}
             disabled={!currentPrefix}
@@ -394,12 +393,12 @@ export function BrowserPage() {
           )}
         </div>
 
-        <div className="mb-4">
+        <div className="mb-4 shrink-0">
           <SearchBar />
         </div>
 
         {selectedObjects.length > 0 && (
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-4 flex items-center gap-2 shrink-0">
             <span className="text-sm text-gray-500">已选择 {selectedObjects.length} 项</span>
             <button
               onClick={() => setDeleteDialog({ open: true, keys: selectedObjects })}
@@ -413,12 +412,14 @@ export function BrowserPage() {
           </div>
         )}
 
-        <FileList
-          onDownload={handleDownload}
-          onDelete={(keys) => setDeleteDialog({ open: true, keys })}
-          onRename={handleRename}
-          onNavigate={navigateToFolder}
-        />
+        <div className="flex-1 min-h-0">
+          <FileList
+            onDownload={handleDownload}
+            onDelete={(keys) => setDeleteDialog({ open: true, keys })}
+            onRename={handleRename}
+            onNavigate={navigateToFolder}
+          />
+        </div>
 
         {showUploader && (
           <FileUploader

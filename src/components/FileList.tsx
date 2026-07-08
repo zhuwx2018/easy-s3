@@ -20,14 +20,11 @@ export function FileList({ onDownload, onDelete, onRename, onNavigate }: Props) 
   const { objects, searchQuery, selectedObjects, toggleSelected, setSelectedObjects } =
     useBrowserStore();
 
-  // 过滤并排序：文件夹在前，然后按文件名排序
   const filtered = objects
     .filter((obj) => obj.key.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
-      // 文件夹优先
       if (a.isFolder && !b.isFolder) return -1;
       if (!a.isFolder && b.isFolder) return 1;
-      // 然后按文件名排序
       const nameA = a.key.split('/').pop() || '';
       const nameB = b.key.split('/').pop() || '';
       return nameA.localeCompare(nameB);
@@ -44,11 +41,11 @@ export function FileList({ onDownload, onDelete, onRename, onNavigate }: Props) 
   };
 
   return (
-    <div className="border rounded-lg overflow-hidden">
-      <table className="w-full">
-        <thead className="bg-gray-50 border-b">
+    <div className="border rounded-lg overflow-hidden h-full flex flex-col">
+      <table className="w-full border-collapse">
+        <thead className="bg-gray-50 border-b sticky top-0">
           <tr>
-            <th className="w-10 p-3">
+            <th className="w-10 p-3 text-left">
               <button onClick={toggleAll} className="p-1">
                 {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
               </button>
@@ -59,79 +56,85 @@ export function FileList({ onDownload, onDelete, onRename, onNavigate }: Props) 
             <th className="w-32 p-3">操作</th>
           </tr>
         </thead>
-        <tbody>
-          {filtered.map((obj) => (
-            <tr key={obj.key} className="border-b hover:bg-gray-50">
-              <td className="p-3">
-                <button onClick={() => toggleSelected(obj.key)} className="p-1">
-                  {selectedObjects.includes(obj.key) ? (
-                    <CheckSquare className="w-4 h-4" />
-                  ) : (
-                    <Square className="w-4 h-4" />
-                  )}
-                </button>
-              </td>
-              <td className="p-3">
-                <div className="flex items-center gap-2">
-                  {obj.isFolder ? (
-                    <Folder className="w-4 h-4 text-yellow-500" />
-                  ) : (
-                    <File className="w-4 h-4 text-gray-400" />
-                  )}
-                  <button
-                    onClick={() => obj.isFolder && onNavigate(obj.key)}
-                    className={obj.isFolder ? 'cursor-pointer hover:underline' : ''}
-                  >
-                    {obj.key.split('/').filter(Boolean).pop()}
-                  </button>
-                </div>
-              </td>
-              <td className="p-3 text-sm text-gray-500">
-                {obj.isFolder ? '--' : formatSize(obj.size)}
-              </td>
-              <td className="p-3 text-sm text-gray-500">
-                {obj.lastModified ? new Date(obj.lastModified).toLocaleString() : '--'}
-              </td>
-              <td className="p-3">
-                <div className="flex gap-1">
-                  {!obj.isFolder && (
-                    <button
-                      onClick={() => onDownload(obj.key)}
-                      className="p-1 hover:bg-gray-200 rounded"
-                      title="下载"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      const newName = prompt('输入新名称', obj.key.split('/').pop());
-                      if (newName && newName !== obj.key.split('/').pop()) {
-                        const prefix = obj.key.includes('/') ? obj.key.substring(0, obj.key.lastIndexOf('/') + 1) : '';
-                        onRename(obj.key, prefix + newName);
-                      }
-                    }}
-                    className="p-1 hover:bg-gray-200 rounded"
-                    title="重命名"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => onDelete([obj.key])}
-                    className="p-1 hover:bg-red-100 text-red-600 rounded"
-                    title="删除"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
       </table>
-      {filtered.length === 0 && (
-        <div className="p-8 text-center text-gray-500">暂无文件</div>
-      )}
+      <div className="flex-1 overflow-y-auto">
+        <table className="w-full border-collapse">
+          <tbody>
+            {filtered.map((obj) => (
+              <tr key={obj.key} className="border-b hover:bg-gray-50">
+                <td className="p-3">
+                  <button onClick={() => toggleSelected(obj.key)} className="p-1">
+                    {selectedObjects.includes(obj.key) ? (
+                      <CheckSquare className="w-4 h-4" />
+                    ) : (
+                      <Square className="w-4 h-4" />
+                    )}
+                  </button>
+                </td>
+                <td className="p-3">
+                  <div className="flex items-center gap-2">
+                    {obj.isFolder ? (
+                      <Folder className="w-4 h-4 text-yellow-500" />
+                    ) : (
+                      <File className="w-4 h-4 text-gray-400" />
+                    )}
+                    <button
+                      onClick={() => obj.isFolder && onNavigate(obj.key)}
+                      className={obj.isFolder ? 'cursor-pointer hover:underline' : ''}
+                    >
+                      {obj.key.split('/').filter(Boolean).pop()}
+                    </button>
+                  </div>
+                </td>
+                <td className="p-3 text-sm text-gray-500">
+                  {obj.isFolder ? '--' : formatSize(obj.size)}
+                </td>
+                <td className="p-3 text-sm text-gray-500">
+                  {obj.lastModified ? new Date(obj.lastModified).toLocaleString() : '--'}
+                </td>
+                <td className="p-3">
+                  <div className="flex gap-1">
+                    {!obj.isFolder && (
+                      <button
+                        onClick={() => onDownload(obj.key)}
+                        className="p-1 hover:bg-gray-200 rounded"
+                        title="下载"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        const newName = prompt('输入新名称', obj.key.split('/').pop());
+                        if (newName && newName !== obj.key.split('/').pop()) {
+                          const prefix = obj.key.includes('/') ? obj.key.substring(0, obj.key.lastIndexOf('/') + 1) : '';
+                          onRename(obj.key, prefix + newName);
+                        }
+                      }}
+                      className="p-1 hover:bg-gray-200 rounded"
+                      title="重命名"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => onDelete([obj.key])}
+                      className="p-1 hover:bg-red-100 text-red-600 rounded"
+                      title="删除"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={5} className="p-8 text-center text-gray-500">暂无文件</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

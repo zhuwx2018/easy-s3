@@ -15,7 +15,7 @@ pub async fn create_client(connection: &S3Connection) -> Client {
         }
     };
 
-    log_to_file(&format!("create_client: endpoint={}, secret_key={}, use_tls={}", endpoint_url, connection.secret_key, connection.use_tls));
+    log_to_file(&format!("create_client: endpoint={}, use_tls={}", endpoint_url, connection.use_tls));
 
     // Create credentials
     let credentials = Credentials::new(
@@ -23,7 +23,7 @@ pub async fn create_client(connection: &S3Connection) -> Client {
         &connection.secret_key,
         None,
         None,
-        "s3-browser",
+        "easy-s3",
     );
 
     log_to_file("Credentials created");

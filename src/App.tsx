@@ -31,8 +31,8 @@ function App() {
   }, [currentConnection]);
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white border-b px-6 py-3 flex gap-4">
+    <div className="h-screen flex flex-col bg-gray-100">
+      <nav className="bg-white border-b px-6 py-3 flex gap-4 shrink-0">
         <button
           onClick={() => setStockVisible(!stockVisible)}
           className={`px-3 py-1 rounded ${stockVisible ? 'bg-blue-100 text-blue-700' : ''}`}
@@ -53,10 +53,12 @@ function App() {
           文件浏览
         </button>
       </nav>
-      {stockVisible ? <StockPage /> :
-       page === 'connections' ? <ConnectionsPage /> :
-       page === 'browser' ? <BrowserPage /> :
-       <ConnectionsPage />}
+      <div className="flex-1 overflow-hidden">
+        {stockVisible ? <StockPage /> :
+         page === 'connections' ? <ConnectionsPage /> :
+         page === 'browser' ? <BrowserPage /> :
+         <ConnectionsPage />}
+      </div>
     </div>
   );
 }

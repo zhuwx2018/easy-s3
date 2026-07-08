@@ -8,7 +8,7 @@ pub(crate) fn log_to_file(msg: &str) {
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(std::env::temp_dir().join("s3-browser-debug.log"))
+        .open(std::env::temp_dir().join("easy-s3-debug.log"))
     {
         let _ = writeln!(file, "{}", msg);
     }
@@ -44,7 +44,7 @@ pub struct S3Object {
 
 #[tauri::command]
 pub async fn test_connection(connection: S3Connection) -> Result<bool, String> {
-    log_to_file(&format!("test_connection: endpoint={}, access_key={}, secret_key={}, use_tls={}", connection.endpoint, connection.access_key, connection.secret_key, connection.use_tls));
+    log_to_file(&format!("test_connection: endpoint={}, use_tls={}", connection.endpoint, connection.use_tls));
 
     let client = create_client(&connection).await;
 

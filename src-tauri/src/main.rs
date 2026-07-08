@@ -20,12 +20,13 @@ fn main() {
             commands::s3_commands::upload_object_multipart_with_progress,
             commands::s3_commands::download_object,
             commands::s3_commands::get_object_url,
+            commands::s3_commands::download_object_with_progress,
+            commands::s3_commands::debug_http,
             commands::connection_commands::save_connection,
             commands::connection_commands::list_connections,
             commands::connection_commands::delete_connection,
             commands::system_commands::open_path,
             commands::system_commands::get_downloads_dir,
-            commands::s3_commands::download_object_with_progress,
             commands::system_commands::http_get,
         ])
         .run(tauri::generate_context!())

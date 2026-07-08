@@ -18,7 +18,7 @@ pub struct ConnectionInfo {
 
 fn get_connections_path() -> Result<PathBuf, String> {
     let app_data = std::env::var("APPDATA").map_err(|_| "APPDATA not found".to_string())?;
-    let dir = PathBuf::from(app_data).join("s3-browser");
+    let dir = PathBuf::from(app_data).join("easy-s3");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join(CONNECTIONS_FILE))
 }
