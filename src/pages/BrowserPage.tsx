@@ -12,7 +12,7 @@ import { FileUploader } from '../components/FileUploader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DownloadManager } from '../components/DownloadManager';
 import { UploadManager } from '../components/UploadManager';
-import { ChevronRight, FolderOpen } from 'lucide-react';
+import { FolderOpen } from 'lucide-react';
 
 interface DownloadProgress {
   task_id: string;
@@ -58,6 +58,7 @@ export function BrowserPage() {
     });
 
     const unlistenUpload = listen<UploadProgress>('upload-progress', (event) => {
+      console.log('Upload progress event:', event.payload);
       const { task_id, uploaded, total } = event.payload;
       updateUploadTask(task_id, {
         uploadedBytes: uploaded,
@@ -71,12 +72,17 @@ export function BrowserPage() {
     };
   }, [updateDownloadTask, updateUploadTask]);
 
+  // 监听 currentConnection 变化，切换连接时重置状态并加载
   useEffect(() => {
     if (currentConnection) {
+      setCurrentPrefix('');
+      setSelectedObjects([]);
+      setObjects([]);
       loadBuckets();
     }
   }, [currentConnection]);
 
+  // 监听 bucket 变化，加载文件列表
   useEffect(() => {
     if (currentBucket) {
       loadObjects();
@@ -89,9 +95,11 @@ export function BrowserPage() {
       const result = await invoke<{ name: string }[]>('list_buckets', {
         connection: currentConnection,
       });
-      setBuckets(result.map((b) => b.name));
-      if (result.length > 0 && !currentBucket) {
-        setCurrentBucket(result[0].name);
+      const bucketNames = result.map((b) => b.name);
+      setBuckets(bucketNames);
+      // 选择第一个 bucket
+      if (bucketNames.length > 0) {
+        setCurrentBucket(bucketNames[0]);
       }
     } catch (e) {
       console.error(e);
@@ -116,7 +124,8 @@ export function BrowserPage() {
     if (!currentConnection || !currentBucket) return;
 
     const fileName = key.split('/').pop() || key;
-    const fullKey = currentPrefix + key;
+    // key 可能已经是完整路径，不需要再拼接 currentPrefix
+    const fullKey = key;
     const taskId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     addDownloadTask({
@@ -193,6 +202,9 @@ export function BrowserPage() {
       startTime: Date.now(),
     });
 
+    // Close uploader immediately, task is already in the list
+    setShowUploader(false);
+
     try {
       console.log('Starting upload:', currentPrefix + key, 'size:', data.length);
       await invoke<number>('upload_object_with_progress', {
@@ -210,7 +222,55 @@ export function BrowserPage() {
         uploadedBytes: data.length,
       });
 
-      setShowUploader(false);
+      loadObjects();
+      toast.success(`上传完成: ${key}`);
+    } catch (e) {
+      updateUploadTask(taskId, {
+        status: 'failed',
+        endTime: Date.now(),
+        error: String(e),
+      });
+      toast.error(`上传失败: ${key}`);
+      console.error(e);
+    }
+  };
+
+  const handleUploadMultipart = async (key: string, data: Uint8Array) => {
+    if (!currentConnection || !currentBucket) return;
+
+    const taskId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    addUploadTask({
+      id: taskId,
+      fileName: key.split('/').pop() || key,
+      key,
+      bucket: currentBucket,
+      totalBytes: data.length,
+      uploadedBytes: 0,
+      status: 'uploading',
+      startTime: Date.now(),
+    });
+
+    // Close uploader immediately, task is already in the list
+    setShowUploader(false);
+
+    try {
+      console.log('Starting multipart upload:', currentPrefix + key, 'size:', data.length);
+      await invoke<number>('upload_object_multipart_with_progress', {
+        connection: currentConnection,
+        bucket: currentBucket,
+        key: currentPrefix + key,
+        data: Array.from(data),
+        taskId: taskId,
+      });
+      console.log('Multipart upload complete');
+
+      updateUploadTask(taskId, {
+        status: 'completed',
+        endTime: Date.now(),
+        uploadedBytes: data.length,
+      });
+
       loadObjects();
       toast.success(`上传完成: ${key}`);
     } catch (e) {
@@ -227,10 +287,11 @@ export function BrowserPage() {
   const handleDelete = async (keys: string[]) => {
     if (!currentConnection || !currentBucket) return;
     try {
+      // keys 已经是完整路径，不需要再拼接 currentPrefix
       await invoke('delete_objects', {
         connection: currentConnection,
         bucket: currentBucket,
-        keys: keys.map((k) => currentPrefix + k),
+        keys,
       });
       setSelectedObjects([]);
       loadObjects();
@@ -243,11 +304,12 @@ export function BrowserPage() {
   const handleRename = async (oldKey: string, newKey: string) => {
     if (!currentConnection || !currentBucket) return;
     try {
+      // oldKey 和 newKey 已经是完整路径，不需要再拼接 currentPrefix
       await invoke('rename_object', {
         connection: currentConnection,
         bucket: currentBucket,
-        oldKey: currentPrefix + oldKey,
-        newKey: currentPrefix + newKey,
+        oldKey,
+        newKey,
       });
       loadObjects();
     } catch (e) {
@@ -255,8 +317,16 @@ export function BrowserPage() {
     }
   };
 
-  const navigateToFolder = (prefix: string) => {
-    setCurrentPrefix(currentPrefix + prefix);
+  const navigateToFolder = (key: string) => {
+    // key 可能是 "folder/" 或 "folder/file.txt" 形式
+    // 需要提取文件夹部分并正确拼接
+    if (key.endsWith('/')) {
+      // 文件夹：直接设置 prefix
+      setCurrentPrefix(key);
+    } else {
+      // 文件：不应该触发导航
+      console.warn('navigateToFolder received a file key:', key);
+    }
   };
 
   const navigateUp = () => {
@@ -264,10 +334,6 @@ export function BrowserPage() {
     const parts = currentPrefix.split('/').filter(Boolean);
     parts.pop();
     setCurrentPrefix(parts.length > 0 ? parts.join('/') + '/' : '');
-  };
-
-  const navigateToRoot = () => {
-    setCurrentPrefix('');
   };
 
   const pathParts = currentPrefix.split('/').filter(Boolean);
@@ -302,31 +368,29 @@ export function BrowserPage() {
         </div>
 
         {/* Path Navigation */}
-        <div className="flex items-center gap-2 mb-4 text-sm">
+        <div className="flex items-center gap-2 mb-4 text-sm bg-gray-50 px-4 py-2 rounded-lg border">
           <button
-            onClick={navigateToRoot}
-            className="px-2 py-1 hover:bg-gray-100 rounded flex items-center gap-1"
+            onClick={navigateUp}
+            disabled={!currentPrefix}
+            className="px-2 py-1 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed text-gray-600"
           >
-            <span className="text-gray-600">{currentBucket}</span>
+            返回
           </button>
-          {pathParts.map((part, i) => (
-            <span key={i} className="flex items-center gap-2">
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-              <button
-                onClick={() => setCurrentPrefix(pathParts.slice(0, i + 1).join('/') + '/')}
-                className="px-2 py-1 hover:bg-gray-100 rounded"
-              >
-                {part}
-              </button>
-            </span>
-          ))}
-          {currentPrefix && (
-            <>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-              <button onClick={navigateUp} className="px-2 py-1 hover:bg-gray-100 rounded text-gray-500">
-                返回
-              </button>
-            </>
+          <span className="text-gray-400">|</span>
+          {pathParts.length === 0 ? (
+            <span className="text-gray-500">根目录</span>
+          ) : (
+            pathParts.map((part, i) => (
+              <span key={i} className="flex items-center gap-1">
+                <span className="text-gray-400">/</span>
+                <button
+                  onClick={() => setCurrentPrefix(pathParts.slice(0, i + 1).join('/') + '/')}
+                  className="hover:underline text-gray-800"
+                >
+                  {part}
+                </button>
+              </span>
+            ))
           )}
         </div>
 
@@ -359,6 +423,7 @@ export function BrowserPage() {
         {showUploader && (
           <FileUploader
             onUpload={handleUpload}
+            onUploadMultipart={handleUploadMultipart}
             onClose={() => setShowUploader(false)}
           />
         )}

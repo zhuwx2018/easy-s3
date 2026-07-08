@@ -17,6 +17,7 @@ fn main() {
             commands::s3_commands::rename_object,
             commands::s3_commands::upload_object,
             commands::s3_commands::upload_object_with_progress,
+            commands::s3_commands::upload_object_multipart_with_progress,
             commands::s3_commands::download_object,
             commands::s3_commands::get_object_url,
             commands::connection_commands::save_connection,

@@ -51,10 +51,9 @@ export function UploadManager() {
 
       {expanded && (
         <div className="border-t">
-          {/* Active Uploads */}
           {activeTasks.length > 0 && (
             <div className="p-2 border-b">
-              <div className="text-xs text-gray-500 mb-2">正在上传</div>
+              <div className="text-xs text-gray-500 mb-2">上传中</div>
               {activeTasks.map((task) => (
                 <UploadItem
                   key={task.id}
@@ -68,7 +67,6 @@ export function UploadManager() {
             </div>
           )}
 
-          {/* Completed Uploads */}
           {completedTasks.length > 0 && (
             <div className="p-2">
               <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
@@ -133,11 +131,11 @@ function UploadItem({
       </div>
       <div className="flex items-center gap-2 text-xs text-gray-500">
         <span>{formatSize(task.uploadedBytes)} / {formatSize(task.totalBytes)}</span>
-        <span className="text-green-600">{speed}</span>
+        <span className="text-blue-600">{speed}</span>
         <span>剩余 {remaining}</span>
       </div>
       <div className="mt-1 h-1.5 bg-gray-200 rounded overflow-hidden">
-        <div className="h-full bg-green-500 transition-all" style={{ width: `${progress}%` }} />
+        <div className="h-full bg-blue-500 transition-all" style={{ width: `${progress}%` }} />
       </div>
     </div>
   );

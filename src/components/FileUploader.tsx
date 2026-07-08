@@ -3,13 +3,15 @@ import { Upload, X } from 'lucide-react';
 
 interface Props {
   onUpload: (key: string, data: Uint8Array) => void;
+  onUploadMultipart: (key: string, data: Uint8Array) => void;
   onClose: () => void;
 }
 
-export function FileUploader({ onUpload, onClose }: Props) {
+export function FileUploader({ onUpload, onUploadMultipart, onClose }: Props) {
   const [dragging, setDragging] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [useMultipart, setUseMultipart] = useState(false);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -25,13 +27,21 @@ export function FileUploader({ onUpload, onClose }: Props) {
   };
 
   const handleUpload = async () => {
-    setUploading(true);
-    for (const file of files) {
-      const data = await file.arrayBuffer();
-      await onUpload(file.name, new Uint8Array(data));
-    }
-    setUploading(false);
+    // Store files to upload and clear UI immediately
+    const filesToUpload = [...files];
     setFiles([]);
+    setUploading(false);
+
+    // Start uploads in background
+    for (const file of filesToUpload) {
+      const data = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(data);
+      if (useMultipart) {
+        await onUploadMultipart(file.name, uint8Array);
+      } else {
+        await onUpload(file.name, uint8Array);
+      }
+    }
   };
 
   const removeFile = (index: number) => {
@@ -84,6 +94,19 @@ export function FileUploader({ onUpload, onClose }: Props) {
             ))}
           </div>
         )}
+
+        <div className="flex items-center gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useMultipart}
+              onChange={(e) => setUseMultipart(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <span className="text-sm">分片上传（显示进度）</span>
+          </label>
+          <span className="text-xs text-gray-500">开启后大文件可显示上传进度</span>
+        </div>
 
         <div className="flex justify-end gap-2">
           <button

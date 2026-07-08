@@ -86,18 +86,38 @@ pub async fn list_objects(
     prefix: Option<String>,
 ) -> Result<Vec<S3Object>, String> {
     let client = create_client(&connection).await;
-    let mut request = client.list_objects_v2().bucket(&bucket);
-    if let Some(p) = prefix {
-        request = request.prefix(&p);
+    let mut request = client.list_objects_v2().bucket(&bucket).delimiter("/");
+    if let Some(p) = &prefix {
+        request = request.prefix(p);
     }
     let response = request.send().await.map_err(|e| e.to_string())?;
-    let objects = response.contents();
-    Ok(objects.iter().map(|obj| S3Object {
-        key: obj.key().unwrap_or("").to_string(),
-        size: obj.size().unwrap_or(0) as u64,
-        last_modified: obj.last_modified().map(|d| d.to_string()).unwrap_or_default(),
-        is_folder: obj.key().map(|k| k.ends_with('/')).unwrap_or(false),
-    }).collect())
+
+    let mut objects: Vec<S3Object> = Vec::new();
+
+    // 添加直接子级的文件
+    for obj in response.contents() {
+        let key = obj.key().unwrap_or("").to_string();
+        objects.push(S3Object {
+            key,
+            size: obj.size().unwrap_or(0) as u64,
+            last_modified: obj.last_modified().map(|d| d.to_string()).unwrap_or_default(),
+            is_folder: false,
+        });
+    }
+
+    // 添加直接子级的文件夹（common prefixes）
+    for prefix_entry in response.common_prefixes() {
+        if let Some(prefix_key) = prefix_entry.prefix() {
+            objects.push(S3Object {
+                key: prefix_key.to_string(),
+                size: 0,
+                last_modified: String::new(),
+                is_folder: true,
+            });
+        }
+    }
+
+    Ok(objects)
 }
 
 #[tauri::command]
@@ -198,6 +218,109 @@ pub async fn upload_object_with_progress(
         .key(&key)
         .body(data.into())
         .send().await.map_err(|e| e.to_string())?;
+
+    // Emit completion
+    let _ = app.emit("upload-progress", UploadProgress {
+        task_id: taskId,
+        uploaded: data_len,
+        total: data_len,
+    });
+
+    Ok(data_len)
+}
+
+const MULTIPART_CHUNK_SIZE: usize = 5 * 1024 * 1024; // 5MB per chunk
+
+#[tauri::command]
+pub async fn upload_object_multipart_with_progress(
+    app: tauri::AppHandle,
+    connection: S3Connection,
+    bucket: String,
+    key: String,
+    data: Vec<u8>,
+    taskId: String,
+) -> Result<u64, String> {
+    log_to_file(&format!("[MULTIPART] Start: bucket={}, key={}, data_len={}, taskId={}", bucket, key, data.len(), taskId));
+    let data_len = data.len() as u64;
+
+    log_to_file(&format!("[MULTIPART] Creating client..."));
+    let client = create_client(&connection).await;
+    log_to_file(&format!("[MULTIPART] Client created, calling create_multipart_upload..."));
+
+    // Emit initial progress
+    let _ = app.emit("upload-progress", UploadProgress {
+        task_id: taskId.clone(),
+        uploaded: 0,
+        total: data_len,
+    });
+
+    // Create multipart upload
+    log_to_file(&format!("Creating multipart upload: bucket={}, key={}", bucket, key));
+    let create_result = client.create_multipart_upload()
+        .bucket(&bucket)
+        .key(&key)
+        .send().await.map_err(|e| {
+            log_to_file(&format!("create_multipart_upload error: {}", e));
+            e.to_string()
+        })?;
+
+    let upload_id = create_result.upload_id().ok_or("No upload_id returned")?;
+
+    // Upload parts
+    let mut uploaded: u64 = 0;
+    let mut part_number: i32 = 1;
+    let mut parts: Vec<aws_sdk_s3::types::CompletedPart> = Vec::new();
+
+    for chunk in data.chunks(MULTIPART_CHUNK_SIZE) {
+        let chunk_len = chunk.len();
+        log_to_file(&format!("Uploading part {} ({} bytes)", part_number, chunk_len));
+
+        let part_result = client.upload_part()
+            .bucket(&bucket)
+            .key(&key)
+            .upload_id(upload_id)
+            .part_number(part_number)
+            .body(chunk.to_vec().into())
+            .content_length(chunk_len as i64)
+            .send().await.map_err(|e| {
+                log_to_file(&format!("upload_part error: {}", e));
+                e.to_string()
+            })?;
+
+        if let Some(etag) = part_result.e_tag() {
+            parts.push(aws_sdk_s3::types::CompletedPart::builder()
+                .e_tag(etag)
+                .part_number(part_number)
+                .build());
+        }
+
+        uploaded += chunk.len() as u64;
+        let _ = app.emit("upload-progress", UploadProgress {
+            task_id: taskId.clone(),
+            uploaded,
+            total: data_len,
+        });
+
+        part_number += 1;
+    }
+
+    // Complete multipart upload
+    let parts_count = parts.len();
+    let mut multipart_upload = aws_sdk_s3::types::CompletedMultipartUpload::builder();
+    for part in parts {
+        multipart_upload = multipart_upload.parts(part);
+    }
+
+    log_to_file(&format!("Completing multipart upload with {} parts", parts_count));
+    client.complete_multipart_upload()
+        .bucket(&bucket)
+        .key(&key)
+        .upload_id(upload_id)
+        .multipart_upload(multipart_upload.build())
+        .send().await.map_err(|e| {
+            log_to_file(&format!("complete_multipart_upload error: {}", e));
+            e.to_string()
+        })?;
 
     // Emit completion
     let _ = app.emit("upload-progress", UploadProgress {

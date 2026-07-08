@@ -20,9 +20,18 @@ export function FileList({ onDownload, onDelete, onRename, onNavigate }: Props) 
   const { objects, searchQuery, selectedObjects, toggleSelected, setSelectedObjects } =
     useBrowserStore();
 
-  const filtered = objects.filter((obj) =>
-    obj.key.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // 过滤并排序：文件夹在前，然后按文件名排序
+  const filtered = objects
+    .filter((obj) => obj.key.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      // 文件夹优先
+      if (a.isFolder && !b.isFolder) return -1;
+      if (!a.isFolder && b.isFolder) return 1;
+      // 然后按文件名排序
+      const nameA = a.key.split('/').pop() || '';
+      const nameB = b.key.split('/').pop() || '';
+      return nameA.localeCompare(nameB);
+    });
 
   const allSelected = filtered.length > 0 && filtered.every((o) => selectedObjects.includes(o.key));
 
@@ -70,8 +79,8 @@ export function FileList({ onDownload, onDelete, onRename, onNavigate }: Props) 
                     <File className="w-4 h-4 text-gray-400" />
                   )}
                   <button
-                    onClick={() => obj.isFolder ? onNavigate(obj.key) : onDownload(obj.key)}
-                    className={obj.isFolder ? 'cursor-pointer' : 'hover:underline'}
+                    onClick={() => obj.isFolder && onNavigate(obj.key)}
+                    className={obj.isFolder ? 'cursor-pointer hover:underline' : ''}
                   >
                     {obj.key.split('/').filter(Boolean).pop()}
                   </button>
