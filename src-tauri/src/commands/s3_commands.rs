@@ -437,6 +437,69 @@ pub async fn get_object_url(
 }
 
 #[tauri::command]
+pub async fn create_bucket(
+    connection: S3Connection,
+    bucket: String,
+) -> Result<(), String> {
+    let client = create_client(&connection).await;
+    client.create_bucket()
+        .bucket(&bucket)
+        .send().await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_bucket(
+    connection: S3Connection,
+    bucket: String,
+) -> Result<(), String> {
+    let client = create_client(&connection).await;
+    // Check if bucket is empty
+    let response = client.list_objects_v2()
+        .bucket(&bucket)
+        .max_keys(1)
+        .send().await.map_err(|e| e.to_string())?;
+    if response.contents().len() > 0 || response.common_prefixes().len() > 0 {
+        return Err("存储桶不为空".to_string());
+    }
+    client.delete_bucket()
+        .bucket(&bucket)
+        .send().await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn create_folder(
+    connection: S3Connection,
+    bucket: String,
+    prefix: String,
+    folderName: String,
+) -> Result<(), String> {
+    let client = create_client(&connection).await;
+    let key = format!("{}{}/", prefix, folderName);
+    client.put_object()
+        .bucket(&bucket)
+        .key(&key)
+        .body(vec![].into())
+        .send().await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_bucket_object_count(
+    connection: S3Connection,
+    bucket: String,
+) -> Result<i64, String> {
+    let client = create_client(&connection).await;
+    let response = client.list_objects_v2()
+        .bucket(&bucket)
+        .delimiter("/")
+        .send().await.map_err(|e| e.to_string())?;
+    let count = response.contents().len() as i64 + response.common_prefixes().len() as i64;
+    Ok(count)
+}
+
+#[tauri::command]
 pub async fn debug_http(endpoint: String) -> Result<String, String> {
     log_to_file(&format!("debug_http: testing {}", endpoint));
 

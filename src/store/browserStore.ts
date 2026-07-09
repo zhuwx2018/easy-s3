@@ -7,18 +7,25 @@ export interface S3Object {
   isFolder: boolean;
 }
 
+export interface BucketInfo {
+  name: string;
+  objectCount: number;
+}
+
 interface BrowserStore {
   objects: S3Object[];
   currentBucket: string;
   currentPrefix: string;
   searchQuery: string;
   selectedObjects: string[];
+  buckets: BucketInfo[];
   setObjects: (objects: S3Object[]) => void;
   setCurrentBucket: (bucket: string) => void;
   setCurrentPrefix: (prefix: string) => void;
   setSearchQuery: (query: string) => void;
   setSelectedObjects: (keys: string[]) => void;
   toggleSelected: (key: string) => void;
+  setBuckets: (buckets: BucketInfo[]) => void;
 }
 
 export const useBrowserStore = create<BrowserStore>((set) => ({
@@ -27,6 +34,7 @@ export const useBrowserStore = create<BrowserStore>((set) => ({
   currentPrefix: '',
   searchQuery: '',
   selectedObjects: [],
+  buckets: [],
   setObjects: (objects) => set({ objects }),
   setCurrentBucket: (bucket) => set({ currentBucket: bucket, currentPrefix: '' }),
   setCurrentPrefix: (prefix) => set({ currentPrefix: prefix }),
@@ -38,4 +46,5 @@ export const useBrowserStore = create<BrowserStore>((set) => ({
         ? state.selectedObjects.filter((k) => k !== key)
         : [...state.selectedObjects, key],
     })),
+  setBuckets: (buckets) => set({ buckets }),
 }));
