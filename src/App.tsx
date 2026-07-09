@@ -34,19 +34,13 @@ function App() {
     <div className="h-screen flex flex-col bg-gray-100">
       <nav className="bg-white border-b px-6 py-3 flex gap-4 shrink-0">
         <button
-          onClick={() => setStockVisible(!stockVisible)}
-          className={`px-3 py-1 rounded ${stockVisible ? 'bg-blue-100 text-blue-700' : ''}`}
-        >
-          NIU STOCKER {stockVisible ? '✓' : ''}
-        </button>
-        <button
-          onClick={() => setPage('connections')}
+          onClick={() => { setPage('connections'); setStockVisible(false); }}
           className={`px-3 py-1 rounded ${page === 'connections' ? 'bg-blue-100 text-blue-700' : ''}`}
         >
           连接管理
         </button>
         <button
-          onClick={() => setPage('browser')}
+          onClick={() => { setPage('browser'); setStockVisible(false); }}
           disabled={!currentConnection}
           className="px-3 py-1 rounded disabled:opacity-50 disabled:cursor-not-allowed"
         >
