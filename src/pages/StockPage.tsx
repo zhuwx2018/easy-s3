@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Search, Trash2, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
+import { Search, Trash2, RefreshCw, TrendingUp, TrendingDown, ChevronDown, ChevronUp, Terminal, GripVertical } from 'lucide-react';
 import { useStockStore } from '../store/stockStore';
 
 interface SearchResult {
@@ -20,7 +20,7 @@ interface LogEntry {
 }
 
 export function StockPage() {
-  const { stocks, addStock, removeStock, updateStock } = useStockStore();
+  const { stocks, addStock, removeStock, updateStock, reorderStocks } = useStockStore();
   const stocksRef = useRef(stocks);
   stocksRef.current = stocks;
 
@@ -28,6 +28,8 @@ export function StockPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string>('');
   const [fetchError, setFetchError] = useState<string>('');
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [showDebug, setShowDebug] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
@@ -187,27 +189,6 @@ export function StockPage() {
   // 格式化价格
   const formatPrice = (price: number) => isNaN(price) || price <= 0 ? '--' : price.toFixed(2);
 
-  // 格式化涨跌幅
-  const formatChange = (change: number, percent: number) => {
-    if (isNaN(change) || isNaN(percent)) return '--';
-    const sign = change >= 0 ? '+' : '';
-    return `${sign}${change.toFixed(2)} (${sign}${percent.toFixed(2)}%)`;
-  };
-
-  // 按市场分组
-  const groupedStocks = stocks.reduce((acc, stock) => {
-    const sym = stock.symbol.toLowerCase();
-    let group = '其他';
-    if (sym.startsWith('hk')) group = '港股';
-    else if (sym.startsWith('us')) group = '美股';
-    else if (sym.endsWith('.sh') || sym.endsWith('.sz')) group = 'A股';
-    else if (/^\d{6}$/.test(sym)) group = 'A股';
-
-    if (!acc[group]) acc[group] = [];
-    acc[group].push(stock);
-    return acc;
-  }, {} as Record<string, typeof stocks>);
-
   return (
     <div className="p-6">
       {/* 标题栏 */}
@@ -287,45 +268,68 @@ export function StockPage() {
       {error && <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">{error}</div>}
       {fetchError && <div className="mb-4 p-3 bg-orange-100 border border-orange-400 text-orange-700 rounded text-sm">{fetchError}</div>}
 
-      {/* 股票列表 */}
+      {/* 股票列表 - 卡片形式（可拖动排序） */}
       {stocks.length === 0 ? (
         <div className="text-center py-12 text-gray-500"><p>暂无股票，请搜索添加</p></div>
       ) : (
-        <div className="space-y-6">
-          {Object.entries(groupedStocks).map(([marketName, marketStocks]) => (
-            <div key={marketName}>
-              <h3 className="text-sm font-bold text-gray-500 mb-2 flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded text-xs ${marketName === 'A股' ? 'bg-red-100 text-red-700' : marketName === '港股' ? 'bg-green-100 text-green-700' : marketName === '美股' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                  {marketName}
-                </span>
-                <span className="text-gray-400">{marketStocks.length}只</span>
-              </h3>
-              <div className="space-y-3">
-                {marketStocks.map((stock) => (
-                  <div key={stock.symbol} className="flex items-center justify-between p-4 bg-white border rounded-lg shadow-sm">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <span className="text-lg font-bold text-blue-600">{stock.symbol.slice(0, 2).toUpperCase()}</span>
-                      </div>
-                      <div>
-                        <div className="font-bold text-lg">{stock.symbol}</div>
-                        <div className="text-sm text-gray-500">{stock.name}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <div className="text-xl font-bold">{getCurrencySymbol(stock.symbol)}{formatPrice(stock.price)}</div>
-                        <div className={`text-sm flex items-center gap-1 ${stock.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {stock.change >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                          {formatChange(stock.change, stock.changePercent)}
-                        </div>
-                      </div>
-                      <button onClick={() => removeStock(stock.symbol)} className="p-2 text-red-600 hover:bg-red-50 rounded">
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {stocks.map((stock, index) => (
+            <div
+              key={stock.symbol}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(index));
+                setDraggedIndex(index);
+              }}
+              onDragEnd={() => {
+                setDraggedIndex(null);
+                setDragOverIndex(null);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                setDragOverIndex(index);
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setDragOverIndex(index);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                if (!isNaN(fromIndex) && fromIndex !== index) {
+                  reorderStocks(fromIndex, index);
+                }
+                setDraggedIndex(null);
+                setDragOverIndex(null);
+              }}
+              className={`flex items-center justify-between p-3 bg-white border rounded-lg shadow-sm cursor-grab active:cursor-grabbing transition-all ${
+                draggedIndex === index ? 'opacity-50' : ''
+              } ${dragOverIndex === index && draggedIndex !== index ? 'border-blue-500 border-2' : ''}`}
+            >
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                <div className="w-10 h-10 bg-blue-100 rounded flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-bold text-blue-600">{stock.symbol.slice(0, 2).toUpperCase()}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm truncate">{stock.symbol}</div>
+                  <div className="text-xs text-gray-500 truncate">{stock.name}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="text-right">
+                  <div className="font-bold">{getCurrencySymbol(stock.symbol)}{formatPrice(stock.price)}</div>
+                  <div className={`text-xs flex items-center gap-1 ${stock.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {stock.change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {stock.change >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
                   </div>
-                ))}
+                </div>
+                <button onClick={() => removeStock(stock.symbol)} className="p-1 text-red-500 hover:text-red-700" title="删除">
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
           ))}

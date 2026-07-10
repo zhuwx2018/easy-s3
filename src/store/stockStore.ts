@@ -16,6 +16,7 @@ interface StockStore {
   addStock: (stock: Stock) => void;
   removeStock: (symbol: string) => void;
   updateStock: (symbol: string, updates: Partial<Stock>) => void;
+  reorderStocks: (fromIndex: number, toIndex: number) => void;
   setStocks: (stocks: Stock[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -39,6 +40,12 @@ export const useStockStore = create<StockStore>()(
       updateStock: (symbol, updates) => set((state) => ({
         stocks: state.stocks.map(s => s.symbol === symbol ? { ...s, ...updates } : s),
       })),
+      reorderStocks: (fromIndex, toIndex) => set((state) => {
+        const newStocks = [...state.stocks];
+        const [removed] = newStocks.splice(fromIndex, 1);
+        newStocks.splice(toIndex, 0, removed);
+        return { stocks: newStocks };
+      }),
       setStocks: (stocks) => set({ stocks }),
       setLoading: (loading) => set({ loading }),
       setError: (error) => set({ error }),
