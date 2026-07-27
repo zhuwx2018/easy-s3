@@ -23,7 +23,11 @@ interface UploadStore {
 
 export const useUploadStore = create<UploadStore>((set) => ({
   tasks: [],
-  addTask: (task) => set((state) => ({ tasks: [task, ...state.tasks] })),
+  addTask: (task) => set((state) => {
+    // 限制最多保留50条任务
+    const newTasks = [task, ...state.tasks].slice(0, 50);
+    return { tasks: newTasks };
+  }),
   updateTask: (id, updates) => set((state) => ({
     tasks: state.tasks.map((t) => t.id === id ? { ...t, ...updates } : t),
   })),

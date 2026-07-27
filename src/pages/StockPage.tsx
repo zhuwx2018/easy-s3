@@ -39,8 +39,9 @@ export function StockPage() {
     const newLog: LogEntry = {
       ...entry,
       time: new Date().toLocaleTimeString(),
+      response: entry.response.slice(0, 100), // 截断响应数据
     };
-    setLogs(prev => [newLog, ...prev].slice(0, 50));
+    setLogs(prev => [newLog, ...prev].slice(0, 20)); // 限制20条
   };
 
   // 搜索股票

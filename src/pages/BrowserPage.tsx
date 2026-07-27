@@ -62,7 +62,6 @@ export function BrowserPage() {
     });
 
     const unlistenUpload = listen<UploadProgress>('upload-progress', (event) => {
-      console.log('Upload progress event:', event.payload);
       const { task_id, uploaded, total } = event.payload;
       updateUploadTask(task_id, {
         uploadedBytes: uploaded,
@@ -225,21 +224,6 @@ export function BrowserPage() {
         taskId: taskId,
       });
       console.log('download_object_with_progress result:', result);
-
-      const data = await invoke<number[]>('download_object', {
-        connection: currentConnection,
-        bucket: currentBucket,
-        key: fullKey,
-      });
-      console.log('download_object data length:', data.length);
-
-      const blob = new Blob([new Uint8Array(data)]);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
 
       updateDownloadTask(taskId, {
         status: 'completed',

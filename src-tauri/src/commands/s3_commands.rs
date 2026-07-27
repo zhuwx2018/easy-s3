@@ -5,10 +5,19 @@ use tauri::Emitter;
 use crate::s3::client::create_client;
 
 pub(crate) fn log_to_file(msg: &str) {
+    let log_path = std::env::temp_dir().join("easy-s3-debug.log");
+
+    // 如果文件超过1MB，清空
+    if let Ok(metadata) = std::fs::metadata(&log_path) {
+        if metadata.len() > 1024 * 1024 {
+            let _ = std::fs::remove_file(&log_path);
+        }
+    }
+
     if let Ok(mut file) = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(std::env::temp_dir().join("easy-s3-debug.log"))
+        .open(log_path)
     {
         let _ = writeln!(file, "{}", msg);
     }
